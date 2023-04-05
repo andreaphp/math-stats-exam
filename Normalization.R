@@ -29,3 +29,6 @@
 #min-max
 #log2
 #trimmed
+
+#guide deseq edgeR
+#https://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25
