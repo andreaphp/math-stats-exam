@@ -1,9 +1,11 @@
 #Description and effect of normalization techniques
-
+library(tidyverse)
+library(ggfortify)
+library(preprocessCore)
+library(edgeR)
 
 #DATASET CompCODEr
 browseVignettes("compcodeR")
-
 
 
 #musa article
@@ -59,10 +61,50 @@ runDiffExp(data.file = "B_625_625_5spc_repl1.rds", result.extent = "ttest",
            output.directory = ".", norm.method = "TMM")
 
 B_625_625_5spc_repl1 = readRDS('B_625_625_5spc_repl1.rds')
-count = B_625_625_5spc_repl1@count.matrix
+count = data.frame(B_625_625_5spc_repl1@count.matrix)
 
-#PCA Comparison for all models :) 
+data = as_tibble(t(count),rownames=NA)
+data = data%>%
+  mutate(ID=row_number()) %>%
+  mutate(condition = c(rep('condition_1',5),rep('condition_2',5)))
+  
+metadata = data %>%
+  select(ID,condition)
+
+set.seed(1246)
+
 #https://academic.oup.com/bioinformatics/article/29/22/2877/313226?login=true
+
+#****************************************************************************
+# Plot ------------------------------------------------------------------------
+umap_fit = data %>%
+  select(where(is.numeric))%>%
+  column_to_rownames('ID')%>%
+  scale()%>%
+  umap(n_neighbors=5)
+
+umap_df <- umap_fit$layout %>%
+  as.data.frame()%>%
+  rename(UMAP1="V1",
+         UMAP2="V2") %>%
+  mutate(ID=row_number())%>%
+  inner_join(metadata, by="ID")
+
+umap_df %>%
+  ggplot(aes(x = UMAP1, 
+             y = UMAP2, 
+             color = condition,))+
+  geom_point()+
+  labs(x = "UMAP1",
+       y = "UMAP2",
+       subtitle = "UMAP plot")
+ggsave("UMAP_Normal.png")
+
+df = data %>%
+  select(-ID,-condition)
+pca_res <- prcomp(df, scale. = TRUE)
+autoplot(pca_res, data = data, colour = 'condition')
+ggsave("PCA_Normal.png")
 
 #****************************************************************************  
 # quantile normalization -------------------------------------------------------
@@ -80,14 +122,105 @@ count = B_625_625_5spc_repl1@count.matrix
 #All- Naive application of QN
 
 
-#Class-specific - QN applied on each subclass
+#perform quantile normalization
+df_norm <- as.data.frame(normalize.quantiles(as.matrix(df)))
 
+pca_res <- prcomp(df_norm, scale. = TRUE)
+autoplot(pca_res, data = data, colour = 'condition')
+ggsave("PCA_All_Quantile.png")
+
+umap_fit = df_norm %>%
+  scale()%>%
+  umap(n_neighbors=5)
+
+umap_df <- umap_fit$layout %>%
+  as.data.frame()%>%
+  rename(UMAP1="V1",
+         UMAP2="V2") %>%
+  mutate(ID=row_number())%>%
+  inner_join(metadata, by="ID")
+
+umap_df %>%
+  ggplot(aes(x = UMAP1, 
+             y = UMAP2, 
+             color = condition,))+
+  geom_point()+
+  labs(x = "UMAP1",
+       y = "UMAP2",
+       subtitle = "UMAP plot")
+ggsave("UMAP_All_Quantile.png")
+
+#Class-specific - QN applied on each subclass
+df_1 = data %>%
+  filter(condition == 'condition_1') %>%
+  select(-ID,-condition)
+
+df_norm_1 <- as.data.frame(normalize.quantiles(as.matrix(df_1)))
+
+df_2 = data%>%
+  filter(condition=='condition_2')%>%
+  select(-ID,-condition)
+
+df_norm_2 <- as.data.frame(normalize.quantiles(as.matrix(df_2)))
+
+df_norm = rbind(df_norm_1,df_norm_2)
+
+pca_res <- prcomp(df_norm, scale. = TRUE)
+autoplot(pca_res, data = data, colour = 'condition')
+ggsave("PCA_Class_Quantile.png")
+
+umap_fit = df_norm %>%
+  scale()%>%
+  umap(n_neighbors=5)
+
+umap_df <- umap_fit$layout %>%
+  as.data.frame()%>%
+  rename(UMAP1="V1",
+         UMAP2="V2") %>%
+  mutate(ID=row_number())%>%
+  inner_join(metadata, by="ID")
+
+umap_df %>%
+  ggplot(aes(x = UMAP1, 
+             y = UMAP2, 
+             color = condition,))+
+  geom_point()+
+  labs(x = "UMAP1",
+       y = "UMAP2",
+       subtitle = "UMAP plot")
+ggsave("UMAP_Class_Quantile.png")
 
 
 #****************************************************************************
 # upper quantile---------------------------------------------------------------
 
+normalization_factor <- as_tibble(calcNormFactors(count,method="upperquartile"))
+df_norm = mapply(`*`,df,normalization_factor)
 
+pca_res <- prcomp(df_norm, scale. = TRUE)
+autoplot(pca_res, data = data, colour = 'condition')
+ggsave("PCA_Upper_Quantile.png")
+
+umap_fit = df_norm %>%
+  scale()%>%
+  umap(n_neighbors=5)
+
+umap_df <- umap_fit$layout %>%
+  as.data.frame()%>%
+  rename(UMAP1="V1",
+         UMAP2="V2") %>%
+  mutate(ID=row_number())%>%
+  inner_join(metadata, by="ID")
+
+umap_df %>%
+  ggplot(aes(x = UMAP1, 
+             y = UMAP2, 
+             color = condition,))+
+  geom_point()+
+  labs(x = "UMAP1",
+       y = "UMAP2",
+       subtitle = "UMAP plot")
+ggsave("UMAP_Upper_Quantile.png")
 
 
 #****************************************************************************
